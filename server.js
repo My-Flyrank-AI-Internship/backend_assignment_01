@@ -8,7 +8,6 @@ let tasks = [
   { id: 2, title: "Build a REST API", done: false },
   { id: 3, title: "Write tests", done: false },
 ];
-let nextId = 4;
 
 app.get("/tasks", (req, res) => {
   try {
@@ -34,9 +33,13 @@ app.get("/tasks/:id", (req, res) => {
 app.post("/tasks", (req, res) => {
   const { title } = req.body;
   if (!title || title.trim() === "") return res.status(400).json({ error: "Title is required" });
-  const newTask = { id: nextId++, title, done: false };
-  tasks.push(newTask);
-  res.status(201).json(newTask);
+  try {
+    const info = db.prepare("INSERT INTO tasks (title, done) VALUES (?, ?)").run(title, 0);
+    res.status(201).json({ id: info.lastInsertRowid, title, done: false });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create task" });
+  }
 });
 
 app.put("/tasks/:id", (req, res) => {
