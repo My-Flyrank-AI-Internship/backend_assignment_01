@@ -43,19 +43,29 @@ app.post("/tasks", (req, res) => {
 });
 
 app.put("/tasks/:id", (req, res) => {
-  const task = tasks.find((t) => t.id === Number(req.params.id));
-  if (!task) return res.status(404).json({ error: "Task not found" });
-  const { title, done } = req.body;
-  if (title !== undefined) task.title = title;
-  if (done !== undefined) task.done = done;
-  res.json(task);
+  try {
+    const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Task not found" });
+    const { title, done } = req.body;
+    const updatedTitle = title !== undefined ? title : existing.title;
+    const updatedDone = done !== undefined ? (done ? 1 : 0) : existing.done;
+    db.prepare("UPDATE tasks SET title = ?, done = ? WHERE id = ?").run(updatedTitle, updatedDone, req.params.id);
+    res.json({ id: existing.id, title: updatedTitle, done: Boolean(updatedDone) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update task" });
+  }
 });
 
 app.delete("/tasks/:id", (req, res) => {
-  const index = tasks.findIndex((t) => t.id === Number(req.params.id));
-  if (index === -1) return res.status(404).json({ error: "Task not found" });
-  tasks.splice(index, 1);
-  res.status(204).send();
+  try {
+    const info = db.prepare("DELETE FROM tasks WHERE id = ?").run(req.params.id);
+    if (info.changes === 0) return res.status(404).json({ error: "Task not found" });
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete task" });
+  }
 });
 
 const PORT = 3000;
