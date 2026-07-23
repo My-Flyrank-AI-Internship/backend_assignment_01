@@ -1,4 +1,5 @@
 const express = require("express");
+const db = require("./db");
 const app = express();
 app.use(express.json());
 
@@ -9,12 +10,25 @@ let tasks = [
 ];
 let nextId = 4;
 
-app.get("/tasks", (req, res) => res.json(tasks));
+app.get("/tasks", (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM tasks").all();
+    res.json(rows.map((r) => ({ ...r, done: Boolean(r.done) })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch tasks" });
+  }
+});
 
 app.get("/tasks/:id", (req, res) => {
-  const task = tasks.find((t) => t.id === Number(req.params.id));
-  if (!task) return res.status(404).json({ error: "Task not found" });
-  res.json(task);
+  try {
+    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(req.params.id);
+    if (!row) return res.status(404).json({ error: "Task not found" });
+    res.json({ ...row, done: Boolean(row.done) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch task" });
+  }
 });
 
 app.post("/tasks", (req, res) => {
