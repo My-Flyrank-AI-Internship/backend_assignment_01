@@ -1,15 +1,8 @@
 require("dotenv").config();
 const repository = require("./repository");
 const express = require("express");
-const db = require("./db");
 const app = express();
 app.use(express.json());
-
-let tasks = [
-  { id: 1, title: "Learn Node.js", done: false },
-  { id: 2, title: "Build a REST API", done: false },
-  { id: 3, title: "Write tests", done: false },
-];
 
 app.get("/tasks", async (req, res) => {
   try {
@@ -32,37 +25,35 @@ app.get("/tasks/:id", async (req, res) => {
   }
 });
 
-app.post("/tasks", (req, res) => {
+app.post("/tasks", async (req, res) => {
   const { title } = req.body;
-  if (!title || title.trim() === "") return res.status(400).json({ error: "Title is required" });
+  if (!title || title.trim() === "") {
+    return res.status(400).json({ error: "Title is required" });
+  }
   try {
-    const info = db.prepare("INSERT INTO tasks (title, done) VALUES (?, ?)").run(title, 0);
-    res.status(201).json({ id: info.lastInsertRowid, title, done: false });
+    const task = await repository.create(title);
+    res.status(201).json(task);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create task" });
   }
 });
 
-app.put("/tasks/:id", (req, res) => {
+app.put("/tasks/:id", async (req, res) => {
   try {
-    const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(req.params.id);
-    if (!existing) return res.status(404).json({ error: "Task not found" });
-    const { title, done } = req.body;
-    const updatedTitle = title !== undefined ? title : existing.title;
-    const updatedDone = done !== undefined ? (done ? 1 : 0) : existing.done;
-    db.prepare("UPDATE tasks SET title = ?, done = ? WHERE id = ?").run(updatedTitle, updatedDone, req.params.id);
-    res.json({ id: existing.id, title: updatedTitle, done: Boolean(updatedDone) });
+    const task = await repository.update(req.params.id, req.body);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    res.json(task);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update task" });
   }
 });
 
-app.delete("/tasks/:id", (req, res) => {
+app.delete("/tasks/:id", async (req, res) => {
   try {
-    const info = db.prepare("DELETE FROM tasks WHERE id = ?").run(req.params.id);
-    if (info.changes === 0) return res.status(404).json({ error: "Task not found" });
+    const deleted = await repository.remove(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Task not found" });
     res.status(204).send();
   } catch (err) {
     console.error(err);
