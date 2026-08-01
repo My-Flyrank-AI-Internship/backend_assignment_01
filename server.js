@@ -11,21 +11,21 @@ let tasks = [
   { id: 3, title: "Write tests", done: false },
 ];
 
-app.get("/tasks", (req, res) => {
+app.get("/tasks", async (req, res) => {
   try {
-    const rows = db.prepare("SELECT * FROM tasks").all();
-    res.json(rows.map((r) => ({ ...r, done: Boolean(r.done) })));
+    const tasks = await repository.getAll();
+    res.json(tasks);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch tasks" });
   }
 });
 
-app.get("/tasks/:id", (req, res) => {
+app.get("/tasks/:id", async (req, res) => {
   try {
-    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(req.params.id);
-    if (!row) return res.status(404).json({ error: "Task not found" });
-    res.json({ ...row, done: Boolean(row.done) });
+    const task = await repository.getById(req.params.id);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    res.json(task);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch task" });
