@@ -1,3 +1,5 @@
+require("dotenv").config();
+const repository = require("./repository");
 const express = require("express");
 const db = require("./db");
 const app = express();
@@ -68,5 +70,7 @@ app.delete("/tasks/:id", (req, res) => {
   }
 });
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000;
+repository.init().then(() => {
+  app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+});
