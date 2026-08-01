@@ -1,88 +1,56 @@
-# Task CRUD API — SQLite Edition
+# Task CRUD API — Postgres in Docker
 
 ## Project Overview
 
-A minimal, beginner-friendly REST API for managing a task list, built with **Node.js** and **Express**. This project started as an in-memory CRUD API (Assignment 1) and has been migrated to use a persistent **SQLite** database via `better-sqlite3` — without changing a single endpoint, request body, response body, or status code.
-
-Tasks now survive server restarts, since they're stored on disk in `tasks.db` instead of a JavaScript array that resets every time the process stops.
+A minimal REST API for managing a task list, built with **Node.js**, **Express**, and **Postgres**. The entire stack (Node.js server and PostgreSQL database) runs containerized and launches with a single command. The API contract remains consistent across storage backends, and storage details are abstracted by `repository.js`.
 
 ## Features
 
 - Full CRUD support for tasks: Create, Read, Update, Delete
-- Persistent storage using SQLite — no data loss on restart
-- Automatic database and table creation on first run
-- Automatic seeding with 3 sample tasks (only if the table is empty)
-- Input validation (empty/missing `title` rejected)
-- Consistent error responses with proper HTTP status codes
-- Parameterized SQL queries throughout — no SQL injection risk
-- Clean, modular code separating the database layer (`db.js`) from the API layer (`server.js`)
+- Persistent storage using PostgreSQL backed by a named Docker volume (`taskdata`)
+- Stack orchestration using Docker Compose
+- Environment variable configuration via `.env`
+- Automatic database table creation and seeding on startup (seeds 3 sample tasks if the table is empty)
+- Input validation and proper HTTP status code responses
 
 ## Folder Structure
 
 ```
 task-crud-api/
-│── server.js        # Express app + all route handlers
-│── db.js             # SQLite connection, table setup, and seeding logic
-│── queries.sql        # Reference SQL queries for manual inspection/admin
-│── tasks.db           # SQLite database file (created automatically, gitignored)
+│── Dockerfile         # App image build specification
+│── compose.yaml       # App and Database services configuration
+│── server.js          # Express app + all route handlers
+│── repository.js      # Postgres connection, table setup, and query operations
+│── queries.sql        # Reference SQL queries
+│── .env.example       # Template for environment configuration
+│── .env               # Local environment variables (gitignored)
+│── .gitignore
+│── .dockerignore
 │── package.json
-│── package-lock.json
 └── README.md
 ```
 
-## Installation
+## Installation & Running
 
-1. Clone the repository:
-   ```bash
-   git clone <your-repository-url>
-   ```
-2. Navigate into the project folder:
-   ```bash
-   cd task-crud-api
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
+### One-Command Startup (Docker Compose)
 
-## Dependencies
-
-| Package | Purpose |
-|---|---|
-| `express` | Web framework — routing and JSON body parsing |
-| `better-sqlite3` | Synchronous, fast SQLite driver for Node.js |
-
-## How to Run
+Start the entire application and database stack with:
 
 ```bash
-node server.js
+docker compose up
 ```
 
-The server starts at:
+This builds the Node.js application image, starts the PostgreSQL database container with persistent volume storage, initializes the database schema, seeds the table if empty, and runs the API server.
 
+### Environment Variables
+
+Before starting the server, ensure your environment variables are configured. A template is provided in [.env.example](file:///.env.example). Create a `.env` file (gitignored) at the project root with the following fields:
+
+```env
+DATABASE_URL=postgres://postgres:dev@db:5432/tasks
+PORT=3000
 ```
-http://localhost:3000
-```
-
-On the very first run, `tasks.db` is created automatically and seeded with 3 sample tasks. On every later run, the app detects existing data and skips seeding.
-
-## Database Location
-
-The database lives in a single file at the project root:
-
-```
-./tasks.db
-```
-
-There's no separate database server to install or configure — the entire database is just this one file, which is created automatically the first time the app runs.
-
-## Why SQLite Was Chosen
-
-- **Zero setup** — no separate database server to install, configure, or run in the background; the whole database is one file.
-- **Perfect fit for the assignment's scale** — a small task list doesn't need a heavyweight client-server database.
-- **Easy to inspect** — the `.db` file can be opened directly in tools like [DB Browser for SQLite](https://sqlitebrowser.org/) to view/edit data visually.
-- **Persistence with minimal code** — `better-sqlite3` gives a synchronous API that's simple to reason about for a small CRUD app, while still using real SQL and parameterized queries.
-- **Portable** — the whole database can be copied, backed up, or shared as a single file.
+Note: When running the Node.js application locally on the host instead of through Docker Compose, point `DATABASE_URL` to `localhost:5432` (or your host-bound database IP).
 
 ## API Endpoints
 
@@ -94,94 +62,56 @@ There's no separate database server to install or configure — the entire datab
 | PUT | `/tasks/:id` | Update a task's title and/or done status |
 | DELETE | `/tasks/:id` | Delete a task |
 
-## Example Requests
+## Example Requests & Responses
 
-**Get all tasks**
-```bash
-curl http://localhost:3000/tasks
-```
+### Pasted `curl -i` output for GET /tasks:
+```http
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Content-Type: application/json; charset=utf-8
+Content-Length: 140
+ETag: W/"8c-BoqWpv18wjvomRbn3F99FF+IHAc"
+Date: Sat, 01 Aug 2026 09:38:48 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
 
-**Get a single task**
-```bash
-curl http://localhost:3000/tasks/2
-```
-
-**Create a task**
-```bash
-curl -X POST http://localhost:3000/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Learn SQLite"}'
-```
-
-**Update a task**
-```bash
-curl -X PUT http://localhost:3000/tasks/2 \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Build a REST API v2", "done": true}'
-```
-
-**Delete a task**
-```bash
-curl -X DELETE http://localhost:3000/tasks/2
-```
-
-## Example Responses
-
-**GET /tasks**
-```json
 [
-  { "id": 1, "title": "Learn Node.js", "done": false },
-  { "id": 2, "title": "Build a REST API", "done": false },
-  { "id": 3, "title": "Write tests", "done": false }
+  {"id":1,"title":"Learn Node.js","done":false},
+  {"id":2,"title":"Build a REST API","done":false},
+  {"id":3,"title":"Write tests","done":false}
 ]
 ```
 
-**POST /tasks (success)**
-```json
-{ "id": 4, "title": "Learn SQLite", "done": false }
-```
+---
 
-**POST /tasks (empty title)**
-```json
-{ "error": "Title is required" }
-```
-Status: `400`
+## Database Verification & CLI Screenshot
 
-**GET /tasks/:id (unknown id)**
-```json
-{ "error": "Task not found" }
-```
-Status: `404`
+Here is the output showing that the `tasks` table is successfully created and seeded inside the `taskdb` container:
 
-**DELETE /tasks/:id (success)**
+```bash
+$ docker exec -it taskdb psql -U postgres -d tasks
 
-No response body. Status: `204`
+tasks=# \dt
+         List of relations
+ Schema | Name  | Type  |  Owner   
+--------+-------+-------+----------
+ public | tasks | table | postgres
+(1 row)
 
-## Screenshot: Viewing the Database in DB Browser for SQLite
-
-> _Add a screenshot here showing `tasks.db` opened in DB Browser for SQLite, with the `tasks` table and its rows visible._
-
-```
-[ screenshot placeholder — insert PNG/JPG of DB Browser here ]
+tasks=# SELECT * FROM tasks;
+ id |      title       | done 
+----+------------------+------
+  1 | Learn Node.js    | f
+  2 | Build a REST API | f
+  3 | Write tests      | f
+(3 rows)
 ```
 
 ## Example SQL Query
 
-Looking up a single task by id (this is exactly what `GET /tasks/:id` runs internally):
+All queries in `repository.js` are parameterized for security. For example, looking up a single task by ID:
 
 ```sql
-SELECT * FROM tasks WHERE id = ?;
+SELECT * FROM tasks WHERE id = $1;
 ```
-
-The `?` is a parameter placeholder filled in safely by `better-sqlite3` at query time — the id is never concatenated directly into the SQL string, which is what protects the app from SQL injection.
-
-See `queries.sql` for more reference queries (filtering by `done`, counting rows, bulk update, bulk delete).
-
-## Future Improvements
-
-- Add pagination and filtering to `GET /tasks` (e.g. `?done=true`, `?limit=10`)
-- Add request validation with a library like `zod` or `joi`
-- Add automated tests (unit + integration) with a test database
-- Add a `created_at` / `updated_at` timestamp to each task
-- Support sorting (e.g. by title or completion status)
-- Add basic authentication if the API is ever exposed publicly
+The `$1` placeholder represents the parameter bound at execution time, which protects the application from SQL injection.
